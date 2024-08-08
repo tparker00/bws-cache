@@ -1,6 +1,6 @@
 FROM golang:alpine as BUILDER
 
-ARG TARGETPLATFORM
+ARG BUILDARCH
 WORKDIR /app
 RUN apk add --no-cache musl-dev gcc ca-certificates
 COPY . .
