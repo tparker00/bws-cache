@@ -96,7 +96,7 @@ func (api *API) getSecretByKey(w http.ResponseWriter, r *http.Request) {
 	defer api.Client.Close()
 	slog.Debug("Connected to bitwarden service")
 
-	slog.Debug("Searching for key")
+	slog.Debug(fmt.Sprintf("Searching for key: %s", key))
 	res, err := api.Client.GetByKey(key, api.OrgID)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))

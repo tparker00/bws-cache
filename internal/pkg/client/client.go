@@ -50,7 +50,7 @@ func (b *Bitwarden) Close() {
 }
 
 func (b *Bitwarden) GetByID(id string) (string, error) {
-	slog.Debug("Getting secret by ID")
+	slog.Debug(fmt.Sprintf("Getting secret by ID: %s", id))
 	value := b.Cache.GetSecret(id)
 	if value != "" {
 		slog.Debug(fmt.Sprintf("%s ID found in cache", id))
