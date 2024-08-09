@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"bws-cache/internal/pkg/cache"
@@ -13,8 +14,11 @@ import (
 )
 
 type Bitwarden struct {
-	Client sdk.BitwardenClientInterface
-	Cache  *cache.Cache
+	Client       sdk.BitwardenClientInterface
+	Cache        *cache.Cache
+	clientsInUse int
+	tokenPath    string
+	mu           sync.Mutex
 }
 
 func New(ttl time.Duration) *Bitwarden {
@@ -24,29 +28,46 @@ func New(ttl time.Duration) *Bitwarden {
 	return &bw
 }
 
-func (c *Bitwarden) Connect(token string) {
+func (b *Bitwarden) Connect(token string) error {
+	b.mu.Lock()
 	var err error
-	slog.Debug("Creating new bitwarden client connection")
-	c.Client, err = c.newClient(token)
-	if err != nil {
-		panic(err)
+	if b.clientsInUse == 0 {
+		slog.Debug("Creating new bitwarden client connection")
+		b.Client, err = b.newClient(token)
+		if err != nil {
+			return err
+		}
+	} else {
+		slog.Debug("Client already open/created")
 	}
+	b.clientsInUse++
+	b.mu.Unlock()
+	return nil
 }
 
-func (c *Bitwarden) newClient(token string) (sdk.BitwardenClientInterface, error) {
+func (b *Bitwarden) newClient(token string) (sdk.BitwardenClientInterface, error) {
 	bitwardenClient, _ := sdk.NewBitwardenClient(nil, nil)
-	tokenPath := fmt.Sprintf("/tmp/%s", uuid.New())
-	err := bitwardenClient.AccessTokenLogin(token, &tokenPath)
+	if b.tokenPath == "" {
+		b.tokenPath = fmt.Sprintf("/tmp/%s", uuid.New())
+	}
+	err := bitwardenClient.AccessTokenLogin(token, &b.tokenPath)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	return bitwardenClient, nil
-
 }
 
 func (b *Bitwarden) Close() {
-	slog.Debug("Closing bitwarden client connection")
-	b.Client.Close()
+	b.mu.Lock()
+	b.clientsInUse--
+	if b.clientsInUse == 0 {
+		slog.Debug("Closing bitwarden client connection")
+		b.Client.Close()
+		b.mu.Unlock()
+		return
+	}
+	slog.Debug("Client still in use not closing")
+	b.mu.Unlock()
 }
 
 func (b *Bitwarden) GetByID(id string) (string, error) {
