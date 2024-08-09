@@ -87,11 +87,11 @@ func (b *Bitwarden) GetByKey(key string, orgID string) (string, error) {
 			// query, but it returns all of them with a single query anyway
 			if keyPair.Key == key {
 				found = true
-				secret, err := b.Client.Secrets().Get(keyPair.ID)
+				BwsSecret, err := b.Client.Secrets().Get(keyPair.ID)
 				if err != nil {
 					return "", err
 				}
-				b.Cache.SetSecret(keyPair.ID, secret.Value)
+				b.Cache.SetSecret(keyPair.ID, BwsSecret.Value)
 			}
 		}
 		if !found {
@@ -101,5 +101,15 @@ func (b *Bitwarden) GetByKey(key string, orgID string) (string, error) {
 		id = b.Cache.GetID(key)
 	}
 	secret = b.Cache.GetSecret(id)
+	if secret == "" {
+		slog.Debug(fmt.Sprintf("%s not found in cache, populating", key))
+		BwsSecret, err := b.Client.Secrets().Get(id)
+		if err != nil {
+			return "", err
+		}
+		b.Cache.SetSecret(id, BwsSecret.Value)
+		secret = BwsSecret.Value
+	}
+	slog.Debug(secret)
 	return secret, nil
 }
