@@ -79,7 +79,7 @@ func (b *Bitwarden) GetByKey(key string, orgID string) (string, error) {
 		}
 		found := false
 		for _, keyPair := range keyList.Data {
-			b.Cache.SetID(key, keyPair.ID)
+			b.Cache.SetID(keyPair.Key, keyPair.ID)
 			// To avoid running into throttling from Bitwarden only
 			// cache the secret value for what was asked for rather
 			// than caching every secret returned. The key/id mapping
