@@ -110,6 +110,5 @@ func (b *Bitwarden) GetByKey(key string, orgID string) (string, error) {
 		b.Cache.SetSecret(id, BwsSecret.Value)
 		secret = BwsSecret.Value
 	}
-	slog.Debug(secret)
 	return secret, nil
 }
