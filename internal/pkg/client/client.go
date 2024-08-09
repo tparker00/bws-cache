@@ -91,7 +91,8 @@ func (b *Bitwarden) GetByKey(key string, orgID string) (string, error) {
 				if err != nil {
 					return "", err
 				}
-				b.Cache.SetSecret(keyPair.ID, BwsSecret.Value)
+				storedSecret, _ := json.Marshal(BwsSecret)
+				b.Cache.SetSecret(keyPair.ID, string(storedSecret))
 			}
 		}
 		if !found {
@@ -107,8 +108,9 @@ func (b *Bitwarden) GetByKey(key string, orgID string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		b.Cache.SetSecret(id, BwsSecret.Value)
-		secret = BwsSecret.Value
+		storedSecret, _ := json.Marshal(BwsSecret)
+		b.Cache.SetSecret(id, string(storedSecret))
+		secret = string(storedSecret)
 	}
 	return secret, nil
 }
