@@ -29,7 +29,10 @@ func New(ttl time.Duration) *Bitwarden {
 }
 
 func (b *Bitwarden) Connect(token string) error {
+	slog.Debug("Getting connection lock")
 	b.mu.Lock()
+	slog.Debug("Connection lock acquired")
+	defer b.mu.Unlock()
 	var err error
 	if b.clientsInUse == 0 {
 		slog.Debug("Creating new bitwarden client connection")
@@ -41,7 +44,6 @@ func (b *Bitwarden) Connect(token string) error {
 		slog.Debug("Client already open/created")
 	}
 	b.clientsInUse++
-	b.mu.Unlock()
 	return nil
 }
 
@@ -58,16 +60,17 @@ func (b *Bitwarden) newClient(token string) (sdk.BitwardenClientInterface, error
 }
 
 func (b *Bitwarden) Close() {
+	slog.Debug("Getting lock to close connection")
 	b.mu.Lock()
+	slog.Debug("Connection lock acquired")
+	defer b.mu.Unlock()
 	b.clientsInUse--
 	if b.clientsInUse == 0 {
 		slog.Debug("Closing bitwarden client connection")
 		b.Client.Close()
-		b.mu.Unlock()
 		return
 	}
 	slog.Debug("Client still in use not closing")
-	b.mu.Unlock()
 }
 
 func (b *Bitwarden) GetByID(id string) (string, error) {
