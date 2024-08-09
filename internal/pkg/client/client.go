@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -54,7 +55,7 @@ func (b *Bitwarden) close() {
 	b.Client.Close()
 }
 
-func (b *Bitwarden) GetByID(id string, clientToken string) (string, error) {
+func (b *Bitwarden) GetByID(ctx context.Context, id string, clientToken string) (string, error) {
 	slog.Debug(fmt.Sprintf("Getting secret by ID: %s", id))
 	value := b.Cache.GetSecret(id)
 	if value != "" {
@@ -64,7 +65,7 @@ func (b *Bitwarden) GetByID(id string, clientToken string) (string, error) {
 
 	slog.Debug(fmt.Sprintf("%s not found in cache, populating", id))
 
-	secret, err := b.getSecretByIDs(id, clientToken)
+	secret, err := b.getSecretByIDs(ctx, id, clientToken)
 	if secret == nil {
 		return "", fmt.Errorf("unable to find secret: %s", id)
 	}
@@ -73,13 +74,13 @@ func (b *Bitwarden) GetByID(id string, clientToken string) (string, error) {
 	return string(secretJson), err
 }
 
-func (b *Bitwarden) GetByKey(key string, orgID string, clientToken string) (string, error) {
+func (b *Bitwarden) GetByKey(ctx context.Context, key string, orgID string, clientToken string) (string, error) {
 	secret := ""
 	id := b.Cache.GetID(key)
 	if id == "" {
-		slog.Debug(fmt.Sprintf("%s not found in cache, populating", key))
+		slog.DebugContext(ctx, fmt.Sprintf("%s not found in cache, populating", key))
 
-		keyList, err := b.getSecretList(orgID, clientToken)
+		keyList, err := b.getSecretList(ctx, orgID, clientToken)
 		if err != nil {
 			return "", err
 		}
@@ -94,7 +95,7 @@ func (b *Bitwarden) GetByKey(key string, orgID string, clientToken string) (stri
 			if keyPair.Key == key {
 				found = true
 
-				bwsSecret, err := b.getSecret(keyPair.ID, clientToken)
+				bwsSecret, err := b.getSecret(ctx, keyPair.ID, clientToken)
 				if err != nil {
 					return "", err
 				}
@@ -110,8 +111,8 @@ func (b *Bitwarden) GetByKey(key string, orgID string, clientToken string) (stri
 	}
 	secret = b.Cache.GetSecret(id)
 	if secret == "" {
-		slog.Debug(fmt.Sprintf("%s not found in cache, populating", key))
-		bwsSecret, err := b.getSecret(id, clientToken)
+		slog.DebugContext(ctx, fmt.Sprintf("%s not found in cache, populating", key))
+		bwsSecret, err := b.getSecret(ctx, id, clientToken)
 		if err != nil {
 			return "", err
 		}
@@ -122,32 +123,32 @@ func (b *Bitwarden) GetByKey(key string, orgID string, clientToken string) (stri
 	return secret, nil
 }
 
-func (b *Bitwarden) getSecretList(orgID string, clientToken string) (*sdk.SecretIdentifiersResponse, error) {
-	slog.Debug("getSecretList: Locking client")
+func (b *Bitwarden) getSecretList(ctx context.Context, orgID string, clientToken string) (*sdk.SecretIdentifiersResponse, error) {
+	slog.DebugContext(ctx, "getSecretList: Locking client")
 	b.mu.Lock()
 
-	slog.Debug("getSecretList: Opening client")
+	slog.DebugContext(ctx, "getSecretList: Opening client")
 	b.connect(clientToken)
 
 	res, err := b.Client.Secrets().List(orgID)
-	slog.Debug("getSecretList: Closing client")
+	slog.DebugContext(ctx, "getSecretList: Closing client")
 	b.close()
 
-	slog.Debug("getSecretList: Unlocking client")
+	slog.DebugContext(ctx, "getSecretList: Unlocking client")
 	b.mu.Unlock()
 
 	return res, err
 }
 
-func (b *Bitwarden) getSecret(id string, clientToken string) (*sdk.SecretResponse, error) {
-	slog.Debug("getSecret: Locking client")
+func (b *Bitwarden) getSecret(ctx context.Context, id string, clientToken string) (*sdk.SecretResponse, error) {
+	slog.DebugContext(ctx, "getSecret: Locking client")
 	b.mu.Lock()
 
-	slog.Debug("getSecret: Opening client")
+	slog.DebugContext(ctx, "getSecret: Opening client")
 	b.connect(clientToken)
 
 	res, err := b.Client.Secrets().Get(id)
-	slog.Debug("getSecret: Closing Client")
+	slog.DebugContext(ctx, "getSecret: Closing Client")
 	b.close()
 
 	slog.Debug("getSecret: Unlocking cliient")
@@ -156,21 +157,21 @@ func (b *Bitwarden) getSecret(id string, clientToken string) (*sdk.SecretRespons
 	return res, err
 }
 
-func (b *Bitwarden) getSecretByIDs(id string, clientToken string) (*sdk.SecretsResponse, error) {
-	slog.Debug("getSecretByIDs: Locking client")
+func (b *Bitwarden) getSecretByIDs(ctx context.Context, id string, clientToken string) (*sdk.SecretsResponse, error) {
+	slog.DebugContext(ctx, "getSecretByIDs: Locking client")
 	b.mu.Lock()
 
-	slog.Debug("getSecretByIDs: Opening client")
+	slog.DebugContext(ctx, "getSecretByIDs: Opening client")
 	b.connect(clientToken)
 
 	secretIDs := make([]string, 1)
 	secretIDs[0] = id
 	res, err := b.Client.Secrets().GetByIDS(secretIDs)
 
-	slog.Debug("getSecretByIDs: Closing client")
+	slog.DebugContext(ctx, "getSecretByIDs: Closing client")
 	b.close()
 
-	slog.Debug("getSecretByIDs: Unlocking client")
+	slog.DebugContext(ctx, "getSecretByIDs: Unlocking client")
 	b.mu.Unlock()
 
 	return res, err
