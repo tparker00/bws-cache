@@ -65,13 +65,8 @@ func (api *API) getSecretByID(w http.ResponseWriter, r *http.Request) {
 	}
 	id := chi.URLParam(r, "secret_id")
 
-	slog.Debug("Connecting to bitwarden service")
-	api.Client.Connect(token)
-	defer api.Client.Close()
-	slog.Debug("Connected to bitwarden service")
-
 	slog.Debug(fmt.Sprintf("Getting secret by ID: %s", id))
-	res, err := api.Client.GetByID(id)
+	res, err := api.Client.GetByID(id, token)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -91,13 +86,8 @@ func (api *API) getSecretByKey(w http.ResponseWriter, r *http.Request) {
 	}
 	key := chi.URLParam(r, "secret_key")
 
-	slog.Debug("Connecting to bitwarden service")
-	api.Client.Connect(token)
-	defer api.Client.Close()
-	slog.Debug("Connected to bitwarden service")
-
 	slog.Debug(fmt.Sprintf("Searching for key: %s", key))
-	res, err := api.Client.GetByKey(key, api.OrgID)
+	res, err := api.Client.GetByKey(key, api.OrgID, token)
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -14,11 +14,10 @@ import (
 )
 
 type Bitwarden struct {
-	Client       sdk.BitwardenClientInterface
-	Cache        *cache.Cache
-	clientsInUse int
-	tokenPath    string
-	mu           sync.Mutex
+	Client    sdk.BitwardenClientInterface
+	Cache     *cache.Cache
+	tokenPath string
+	mu        sync.Mutex
 }
 
 func New(ttl time.Duration) *Bitwarden {
@@ -28,20 +27,13 @@ func New(ttl time.Duration) *Bitwarden {
 	return &bw
 }
 
-func (b *Bitwarden) Connect(token string) error {
-	b.mu.Lock()
+func (b *Bitwarden) connect(token string) error {
 	var err error
-	if b.clientsInUse == 0 {
-		slog.Debug("Creating new bitwarden client connection")
-		b.Client, err = b.newClient(token)
-		if err != nil {
-			return err
-		}
-	} else {
-		slog.Debug("Client already open/created")
+	slog.Debug("Creating new bitwarden client connection")
+	b.Client, err = b.newClient(token)
+	if err != nil {
+		return err
 	}
-	b.clientsInUse++
-	b.mu.Unlock()
 	return nil
 }
 
@@ -57,20 +49,12 @@ func (b *Bitwarden) newClient(token string) (sdk.BitwardenClientInterface, error
 	return bitwardenClient, nil
 }
 
-func (b *Bitwarden) Close() {
-	b.mu.Lock()
-	b.clientsInUse--
-	if b.clientsInUse == 0 {
-		slog.Debug("Closing bitwarden client connection")
-		b.Client.Close()
-		b.mu.Unlock()
-		return
-	}
-	slog.Debug("Client still in use not closing")
-	b.mu.Unlock()
+func (b *Bitwarden) close() {
+	slog.Debug("Closing bitwarden client connection")
+	b.Client.Close()
 }
 
-func (b *Bitwarden) GetByID(id string) (string, error) {
+func (b *Bitwarden) GetByID(id string, clientToken string) (string, error) {
 	slog.Debug(fmt.Sprintf("Getting secret by ID: %s", id))
 	value := b.Cache.GetSecret(id)
 	if value != "" {
@@ -80,6 +64,14 @@ func (b *Bitwarden) GetByID(id string) (string, error) {
 	secretIDs := make([]string, 1)
 	secretIDs[0] = id
 	slog.Debug(fmt.Sprintf("%s not found in cache, populating", id))
+	slog.Debug("Locking client")
+	b.mu.Lock()
+	slog.Debug("Client locked")
+	defer b.mu.Unlock()
+	slog.Debug("Connecting to bitwarden service")
+	b.connect(clientToken)
+	defer b.close()
+
 	secret, err := b.Client.Secrets().GetByIDS(secretIDs)
 	if secret == nil {
 		return "", fmt.Errorf("unable to find secret: %s", id)
@@ -89,11 +81,18 @@ func (b *Bitwarden) GetByID(id string) (string, error) {
 	return string(secretJson), err
 }
 
-func (b *Bitwarden) GetByKey(key string, orgID string) (string, error) {
+func (b *Bitwarden) GetByKey(key string, orgID string, clientToken string) (string, error) {
 	secret := ""
 	id := b.Cache.GetID(key)
 	if id == "" {
 		slog.Debug(fmt.Sprintf("%s not found in cache, populating", key))
+		slog.Debug("Locking client")
+		b.mu.Lock()
+		slog.Debug("Client locked")
+		defer b.mu.Unlock()
+		b.connect(clientToken)
+		defer b.close()
+
 		keyList, err := b.Client.Secrets().List(orgID)
 		if err != nil {
 			return "", err
