@@ -123,34 +123,55 @@ func (b *Bitwarden) GetByKey(key string, orgID string, clientToken string) (stri
 }
 
 func (b *Bitwarden) getSecretList(orgID string, clientToken string) (*sdk.SecretIdentifiersResponse, error) {
-	slog.Debug("Locking client")
+	slog.Debug("getSecretList: Locking client")
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	slog.Debug("Client locked")
-	b.connect(clientToken)
-	defer b.close()
 
-	return b.Client.Secrets().List(orgID)
+	slog.Debug("getSecretList: Opening client")
+	b.connect(clientToken)
+
+	res, err := b.Client.Secrets().List(orgID)
+	slog.Debug("getSecretList: Closing client")
+	b.close()
+
+	slog.Debug("getSecretList: Unlocking client")
+	b.mu.Unlock()
+
+	return res, err
 }
 
 func (b *Bitwarden) getSecret(id string, clientToken string) (*sdk.SecretResponse, error) {
-	slog.Debug("Locking client")
+	slog.Debug("getSecret: Locking client")
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	slog.Debug("Client locked")
+
+	slog.Debug("getSecret: Opening client")
 	b.connect(clientToken)
-	defer b.close()
-	return b.Client.Secrets().Get(id)
+
+	res, err := b.Client.Secrets().Get(id)
+	slog.Debug("getSecret: Closing Client")
+	b.close()
+
+	slog.Debug("getSecret: Unlocking cliient")
+	b.mu.Unlock()
+
+	return res, err
 }
 
 func (b *Bitwarden) getSecretByIDs(id string, clientToken string) (*sdk.SecretsResponse, error) {
-	slog.Debug("Locking client")
+	slog.Debug("getSecretByIDs: Locking client")
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	slog.Debug("Client locked")
+
+	slog.Debug("getSecretByIDs: Opening client")
 	b.connect(clientToken)
-	defer b.close()
+
 	secretIDs := make([]string, 1)
 	secretIDs[0] = id
-	return b.Client.Secrets().GetByIDS(secretIDs)
+	res, err := b.Client.Secrets().GetByIDS(secretIDs)
+
+	slog.Debug("getSecretByIDs: Closing client")
+	b.close()
+
+	slog.Debug("getSecretByIDs: Unlocking client")
+	b.mu.Unlock()
+
+	return res, err
 }
