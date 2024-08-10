@@ -56,7 +56,7 @@ func (b *Bitwarden) close() {
 }
 
 func (b *Bitwarden) GetByID(ctx context.Context, id string, clientToken string) (string, error) {
-	slog.Debug(fmt.Sprintf("Getting secret by ID: %s", id))
+	slog.DebugContext(ctx, fmt.Sprintf("Getting secret by ID: %s", id))
 	value := b.Cache.GetSecret(id)
 	if value != "" {
 		slog.Debug(fmt.Sprintf("%s ID found in cache", id))
@@ -151,7 +151,7 @@ func (b *Bitwarden) getSecret(ctx context.Context, id string, clientToken string
 	slog.DebugContext(ctx, "getSecret: Closing Client")
 	b.close()
 
-	slog.Debug("getSecret: Unlocking cliient")
+	slog.DebugContext(ctx, "getSecret: Unlocking client")
 	b.mu.Unlock()
 
 	return res, err
