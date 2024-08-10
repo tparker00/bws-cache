@@ -36,6 +36,9 @@ func New(config *config.Config) http.Handler {
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(config.WebTTL))
 
+	// Enable profiler
+	router.Mount("/debug", middleware.Profiler())
+
 	slog.Debug("Router middleware setup finished")
 
 	slog.Debug("Creating new bitwarden client connection")
