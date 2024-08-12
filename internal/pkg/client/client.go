@@ -25,29 +25,18 @@ func New(ttl time.Duration) *Bitwarden {
 	bw := Bitwarden{}
 	slog.Debug("Setting up cache")
 	bw.Cache = cache.New(ttl)
+	bw.tokenPath = fmt.Sprintf("/tmp/%s", uuid.New())
 	return &bw
 }
 
 func (b *Bitwarden) connect(token string) error {
-	var err error
 	slog.Debug("Creating new bitwarden client connection")
-	b.Client, err = b.newClient(token)
-	if err != nil {
-		return err
-	}
-	return nil
+	return b.newClient(token)
 }
 
-func (b *Bitwarden) newClient(token string) (sdk.BitwardenClientInterface, error) {
-	bitwardenClient, _ := sdk.NewBitwardenClient(nil, nil)
-	if b.tokenPath == "" {
-		b.tokenPath = fmt.Sprintf("/tmp/%s", uuid.New())
-	}
-	err := bitwardenClient.AccessTokenLogin(token, &b.tokenPath)
-	if err != nil {
-		return nil, err
-	}
-	return bitwardenClient, nil
+func (b *Bitwarden) newClient(token string) error {
+	b.Client, _ = sdk.NewBitwardenClient(nil, nil)
+	return b.Client.AccessTokenLogin(token, &b.tokenPath)
 }
 
 func (b *Bitwarden) close() {
@@ -69,9 +58,13 @@ func (b *Bitwarden) GetByID(ctx context.Context, id string, clientToken string) 
 	if secret == nil {
 		return "", fmt.Errorf("unable to find secret: %s", id)
 	}
+	if err != nil {
+		return "", err
+	}
+
 	secretJson, _ := json.Marshal(secret)
 	b.Cache.SetSecret(id, string(secretJson))
-	return string(secretJson), err
+	return string(secretJson), nil
 }
 
 func (b *Bitwarden) GetByKey(ctx context.Context, key string, orgID string, clientToken string) (string, error) {
@@ -94,13 +87,6 @@ func (b *Bitwarden) GetByKey(ctx context.Context, key string, orgID string, clie
 			// query, but it returns all of them with a single query anyway
 			if keyPair.Key == key {
 				found = true
-
-				bwsSecret, err := b.getSecret(ctx, keyPair.ID, clientToken)
-				if err != nil {
-					return "", err
-				}
-				storedSecret, _ := json.Marshal(bwsSecret)
-				b.Cache.SetSecret(keyPair.ID, string(storedSecret))
 			}
 		}
 		if !found {
