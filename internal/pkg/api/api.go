@@ -36,6 +36,9 @@ func New(config *config.Config) http.Handler {
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(config.WebTTL))
 
+	// Enable profiler
+	router.Mount("/debug", middleware.Profiler())
+
 	slog.Debug("Router middleware setup finished")
 
 	slog.Debug("Creating new bitwarden client connection")
@@ -55,9 +58,10 @@ func New(config *config.Config) http.Handler {
 }
 
 func (api *API) getSecretByID(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("Getting secret by ID")
+	ctx := r.Context()
+	slog.DebugContext(ctx, "Getting secret by ID")
 	token, err := getAuthToken(r)
-	slog.Debug("Got auth token")
+	slog.DebugContext(ctx, "Got auth token")
 	if err != nil {
 		slog.Error(fmt.Sprintf("%+v", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -65,53 +69,45 @@ func (api *API) getSecretByID(w http.ResponseWriter, r *http.Request) {
 	}
 	id := chi.URLParam(r, "secret_id")
 
-	slog.Debug("Connecting to bitwarden service")
-	api.Client.Connect(token)
-	defer api.Client.Close()
-	slog.Debug("Connected to bitwarden service")
-
-	slog.Debug(fmt.Sprintf("Getting secret by ID: %s", id))
-	res, err := api.Client.GetByID(id)
+	slog.DebugContext(ctx, fmt.Sprintf("Getting secret by ID: %s", id))
+	res, err := api.Client.GetByID(ctx, id, token)
 	if err != nil {
-		slog.Error(fmt.Sprintf("%+v", err))
+		slog.ErrorContext(ctx, fmt.Sprintf("%+v", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	slog.Debug("Got secret")
+	slog.DebugContext(ctx, "Got secret")
 	fmt.Fprint(w, res)
 }
 
 func (api *API) getSecretByKey(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("Getting secret by key")
+	ctx := r.Context()
+	slog.DebugContext(ctx, "Getting secret by key")
 	token, err := getAuthToken(r)
 	if err != nil {
-		slog.Error(fmt.Sprintf("%+v", err))
+		slog.ErrorContext(ctx, fmt.Sprintf("%+v", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	key := chi.URLParam(r, "secret_key")
 
-	slog.Debug("Connecting to bitwarden service")
-	api.Client.Connect(token)
-	defer api.Client.Close()
-	slog.Debug("Connected to bitwarden service")
-
-	slog.Debug(fmt.Sprintf("Searching for key: %s", key))
-	res, err := api.Client.GetByKey(key, api.OrgID)
+	slog.DebugContext(ctx, fmt.Sprintf("Searching for key: %s", key))
+	res, err := api.Client.GetByKey(ctx, key, api.OrgID, token)
 	if err != nil {
-		slog.Error(fmt.Sprintf("%+v", err))
+		slog.ErrorContext(ctx, fmt.Sprintf("%+v", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	slog.Debug("Got key")
+	slog.DebugContext(ctx, "Got key")
 	fmt.Fprint(w, res)
 }
 
 func (api *API) resetConnection(w http.ResponseWriter, r *http.Request) {
-	slog.Info("Resetting cache")
+	ctx := r.Context()
+	slog.InfoContext(ctx, "Resetting cache")
 
 	api.Client.Cache.Reset()
-	slog.Info("Cache reset")
+	slog.InfoContext(ctx, "Cache reset")
 }
 
 func getAuthToken(r *http.Request) (string, error) {
