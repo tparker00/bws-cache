@@ -12,9 +12,17 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/telemetry"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+var (
+	AppMetrics = &BwsMetrics{telemetry.NewScope("app")}
+)
+
+type BwsMetrics struct {
+	*telemetry.Scope
+}
 
 type API struct {
 	SecretTTL time.Duration
@@ -35,6 +43,11 @@ func New(config *config.Config) http.Handler {
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(config.WebTTL))
+	// telemetry.Collector middleware mounts /metrics endpoint
+	// with prometheus metrics collector.
+	router.Use(telemetry.Collector(telemetry.Config{
+		AllowAny: true,
+	}, []string{"/"})) // path prefix filters records generic http request metrics
 
 	// Enable profiler
 	router.Mount("/debug", middleware.Profiler())
@@ -52,7 +65,6 @@ func New(config *config.Config) http.Handler {
 		r.Get("/{secret_key}", api.getSecretByKey)
 	})
 	router.Get("/reset", api.resetConnection)
-	router.Handle("/metrics", promhttp.Handler())
 
 	return router
 }
