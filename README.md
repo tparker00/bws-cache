@@ -53,7 +53,7 @@ Docker Compose:
 ```yml
 services:
   bwscache:
-    image: ghcr.io/ripplefcl/bws-cache:latest
+    image: ghcr.io/tparker00/bws-cache:latest
     environment:
       BWS_CACHE_ORG_ID: <org ID>
     ports:
