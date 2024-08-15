@@ -90,6 +90,8 @@ func (api *API) getSecretByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "secret_id")
 
 	slog.DebugContext(ctx, fmt.Sprintf("Getting secret by ID: %s", id))
+	span := api.Metrics.RecordSpan("secret_by_id", nil)
+	defer span.Stop()
 	res, err := api.Client.GetByID(ctx, id, token)
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("%+v", err))
@@ -112,6 +114,8 @@ func (api *API) getSecretByKey(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "secret_key")
 
 	slog.DebugContext(ctx, fmt.Sprintf("Searching for key: %s", key))
+	span := api.Metrics.RecordSpan("secret_by_key", nil)
+	defer span.Stop()
 	res, err := api.Client.GetByKey(ctx, key, api.OrgID, token)
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("%+v", err))
