@@ -16,10 +16,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-var (
-	AppMetrics = &BwsMetrics{telemetry.NewScope("app")}
-)
-
 type BwsMetrics struct {
 	*telemetry.Scope
 }
@@ -29,12 +25,22 @@ type API struct {
 	WebTTL    time.Duration
 	OrgID     string
 	Client    *client.Bitwarden
+	Metrics   *BwsMetrics
+}
+
+func (b *BwsMetrics) Counter(metric string) {
+	b.RecordHit(metric, nil)
+}
+
+func (b *BwsMetrics) Gauge(metric string, value float64) {
+	b.RecordGauge(metric, nil, value)
 }
 
 func New(config *config.Config) http.Handler {
 	api := API{
 		SecretTTL: config.SecretTTL,
 		OrgID:     config.OrgID,
+		Metrics:   &BwsMetrics{telemetry.NewScope("bws-cache")},
 	}
 
 	router := chi.NewRouter()
@@ -59,9 +65,11 @@ func New(config *config.Config) http.Handler {
 	slog.Debug("Client created")
 
 	router.Route("/id", func(r chi.Router) {
+		api.Metrics.Counter("get_id")
 		r.Get("/{secret_id}", api.getSecretByID)
 	})
 	router.Route("/key", func(r chi.Router) {
+		api.Metrics.Counter("get_key")
 		r.Get("/{secret_key}", api.getSecretByKey)
 	})
 	router.Get("/reset", api.resetConnection)
@@ -119,6 +127,7 @@ func (api *API) resetConnection(w http.ResponseWriter, r *http.Request) {
 	slog.InfoContext(ctx, "Resetting cache")
 
 	api.Client.Cache.Reset()
+	api.Metrics.Counter("cache_reset")
 	slog.InfoContext(ctx, "Cache reset")
 }
 
