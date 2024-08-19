@@ -54,11 +54,9 @@ func New(config *config.Config) http.Handler {
 	slog.Debug("Client created")
 
 	router.Route("/id", func(r chi.Router) {
-		api.Metrics.Counter("get_id")
 		r.Get("/{secret_id}", api.getSecretByID)
 	})
 	router.Route("/key", func(r chi.Router) {
-		api.Metrics.Counter("get_key")
 		r.Get("/{secret_key}", api.getSecretByKey)
 	})
 	router.Get("/reset", api.resetConnection)
@@ -67,6 +65,7 @@ func New(config *config.Config) http.Handler {
 }
 
 func (api *API) getSecretByID(w http.ResponseWriter, r *http.Request) {
+	api.Metrics.Counter("get_id")
 	ctx := r.Context()
 	slog.DebugContext(ctx, "Getting secret by ID")
 	token, err := getAuthToken(r)
@@ -92,6 +91,7 @@ func (api *API) getSecretByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) getSecretByKey(w http.ResponseWriter, r *http.Request) {
+	api.Metrics.Counter("get_key")
 	ctx := r.Context()
 	slog.DebugContext(ctx, "Getting secret by key")
 	token, err := getAuthToken(r)
