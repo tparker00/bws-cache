@@ -9,6 +9,7 @@ import (
 
 	"bws-cache/internal/pkg/client"
 	"bws-cache/internal/pkg/config"
+	"bws-cache/internal/pkg/metrics"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -16,31 +17,19 @@ import (
 	"github.com/pkg/errors"
 )
 
-type BwsMetrics struct {
-	*telemetry.Scope
-}
-
 type API struct {
 	SecretTTL time.Duration
 	WebTTL    time.Duration
 	OrgID     string
 	Client    *client.Bitwarden
-	Metrics   *BwsMetrics
-}
-
-func (b *BwsMetrics) Counter(metric string) {
-	b.RecordHit(metric, nil)
-}
-
-func (b *BwsMetrics) Gauge(metric string, value float64) {
-	b.RecordGauge(metric, nil, value)
+	Metrics   *metrics.BwsMetrics
 }
 
 func New(config *config.Config) http.Handler {
 	api := API{
 		SecretTTL: config.SecretTTL,
 		OrgID:     config.OrgID,
-		Metrics:   &BwsMetrics{telemetry.NewScope("bws-cache")},
+		Metrics:   metrics.New(),
 	}
 
 	router := chi.NewRouter()
