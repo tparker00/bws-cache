@@ -65,7 +65,9 @@ func New(config *config.Config) http.Handler {
 }
 
 func (api *API) getSecretByID(w http.ResponseWriter, r *http.Request) {
-	api.Metrics.Counter("get_id")
+	tag := make(map[string]string)
+	tag["endpoint"] = "id"
+	api.Metrics.Counter("get", tag)
 	ctx := r.Context()
 	slog.DebugContext(ctx, "Getting secret by ID")
 	token, err := getAuthToken(r)
@@ -78,7 +80,7 @@ func (api *API) getSecretByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "secret_id")
 
 	slog.DebugContext(ctx, fmt.Sprintf("Getting secret by ID: %s", id))
-	span := api.Metrics.RecordSpan("secret_by_id", nil)
+	span := api.Metrics.RecordSpan("get", tag)
 	defer span.Stop()
 	res, err := api.Client.GetByID(ctx, id, token)
 	if err != nil {
@@ -91,7 +93,9 @@ func (api *API) getSecretByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) getSecretByKey(w http.ResponseWriter, r *http.Request) {
-	api.Metrics.Counter("get_key")
+	tag := make(map[string]string)
+	tag["endpoint"] = "key"
+	api.Metrics.Counter("get", tag)
 	ctx := r.Context()
 	slog.DebugContext(ctx, "Getting secret by key")
 	token, err := getAuthToken(r)
@@ -103,7 +107,7 @@ func (api *API) getSecretByKey(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "secret_key")
 
 	slog.DebugContext(ctx, fmt.Sprintf("Searching for key: %s", key))
-	span := api.Metrics.RecordSpan("secret_by_key", nil)
+	span := api.Metrics.RecordSpan("get", tag)
 	defer span.Stop()
 	res, err := api.Client.GetByKey(ctx, key, api.OrgID, token)
 	if err != nil {
@@ -120,7 +124,9 @@ func (api *API) resetConnection(w http.ResponseWriter, r *http.Request) {
 	slog.InfoContext(ctx, "Resetting cache")
 
 	api.Client.Cache.Reset()
-	api.Metrics.Counter("cache_reset")
+	tag := make(map[string]string)
+	tag["endpoint"] = "cache"
+	api.Metrics.Counter("get", tag)
 	slog.InfoContext(ctx, "Cache reset")
 }
 
