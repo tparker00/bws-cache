@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/httplog/v2"
 	"github.com/go-chi/telemetry"
 	"github.com/pkg/errors"
 )
@@ -32,10 +33,30 @@ func New(config *config.Config) http.Handler {
 		Metrics:   metrics.New(),
 	}
 
+	// Logger
+	logger := httplog.NewLogger("httplog-example", httplog.Options{
+		// JSON:             true,
+		LogLevel:         slog.LevelInfo,
+		Concise:          true,
+		RequestHeaders:   true,
+		MessageFieldName: "message",
+		// TimeFieldFormat: time.RFC850,
+		Tags: map[string]string{
+			"version": "v0.1.8",
+			"env":     "prod",
+		},
+		QuietDownRoutes: []string{
+			"/",
+			"/metrics",
+			"/ping",
+		},
+		QuietDownPeriod: 10 * time.Minute,
+	})
+
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
-	router.Use(middleware.Logger)
+	router.Use(httplog.RequestLogger(logger))
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(config.WebTTL))
 	// telemetry.Collector middleware mounts /metrics endpoint
@@ -43,7 +64,7 @@ func New(config *config.Config) http.Handler {
 	router.Use(telemetry.Collector(telemetry.Config{
 		AllowAny: true,
 	}, []string{"/"})) // path prefix filters records generic http request metrics
-
+	router.Use(middleware.Heartbeat("/ping"))
 	// Enable profiler
 	router.Mount("/debug", middleware.Profiler())
 

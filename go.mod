@@ -5,6 +5,7 @@ go 1.22.3
 require (
 	github.com/bitwarden/sdk-go v0.1.1
 	github.com/go-chi/chi/v5 v5.1.0
+	github.com/go-chi/httplog/v2 v2.1.1
 	github.com/go-chi/telemetry v0.3.4
 	github.com/google/uuid v1.6.0
 	github.com/jellydator/ttlcache/v3 v3.2.0
