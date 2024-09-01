@@ -35,12 +35,12 @@ func New(config *config.Config) http.Handler {
 
 	// Logger
 	logger := httplog.NewLogger("bws-cache", httplog.Options{
-		// JSON:             true,
+		JSON:             true,
 		LogLevel:         slog.LevelInfo,
 		Concise:          true,
 		RequestHeaders:   true,
 		MessageFieldName: "message",
-		TimeFieldFormat:  time.RFC850,
+		TimeFieldFormat:  time.RFC3339,
 		Tags: map[string]string{
 			"version": "v0.1.8",
 			"env":     "prod",
