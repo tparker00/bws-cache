@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -17,6 +18,18 @@ import (
 	"github.com/go-chi/telemetry"
 	"github.com/pkg/errors"
 )
+
+var commit = func() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" {
+				return setting.Value
+			}
+		}
+	}
+
+	return ""
+}()
 
 type API struct {
 	SecretTTL time.Duration
@@ -42,8 +55,7 @@ func New(config *config.Config) http.Handler {
 		MessageFieldName: "message",
 		TimeFieldFormat:  time.RFC3339,
 		Tags: map[string]string{
-			"version": "v0.1.8",
-			"env":     "prod",
+			"version": commit,
 		},
 		QuietDownRoutes: []string{
 			"/",
