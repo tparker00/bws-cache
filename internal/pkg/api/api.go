@@ -37,7 +37,7 @@ func New(config *c.Config) http.Handler {
 	logger := httplog.NewLogger("bws-cache", httplog.Options{
 		JSON:             true,
 		LogLevel:         slog.LevelInfo,
-		Concise:          true,
+		Concise:          false,
 		RequestHeaders:   true,
 		MessageFieldName: "msg",
 		TimeFieldFormat:  time.RFC3339,
