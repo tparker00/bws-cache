@@ -43,7 +43,8 @@ func New(config *c.Config) http.Handler {
 		TimeFieldFormat:  time.RFC3339,
 		TimeFieldName:    "time",
 		Tags: map[string]string{
-			"version": c.Commit,
+			"version": c.Version,
+			"commit":  c.Commit,
 		},
 		QuietDownRoutes: []string{
 			"/",
