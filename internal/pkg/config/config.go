@@ -1,7 +1,7 @@
 package config
 
 import (
-	"runtime/debug"
+	_ "embed"
 	"strings"
 	"time"
 
@@ -20,17 +20,9 @@ type Config struct {
 	Connection    client.Bitwarden
 }
 
-var Commit = func() string {
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range info.Settings {
-			if setting.Key == "vcs.revision" {
-				return setting.Value
-			}
-		}
-	}
-
-	return ""
-}()
+//go:generate sh -c "printf %s $(git rev-parse HEAD) > commit.txt"
+//go:embed commit.txt
+var Commit string
 
 func LoadConfig(config *Config) {
 	v := viper.New()
