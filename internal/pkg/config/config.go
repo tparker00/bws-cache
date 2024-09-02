@@ -1,6 +1,7 @@
 package config
 
 import (
+	_ "embed"
 	"strings"
 	"time"
 
@@ -18,6 +19,10 @@ type Config struct {
 	RefreshKeyMap bool          `mapstructure:"refresh_keymap_on_miss"`
 	Connection    client.Bitwarden
 }
+
+//go:generate sh -c "printf %s $(git rev-parse HEAD) > commit.txt"
+//go:embed commit.txt
+var Commit string
 
 func LoadConfig(config *Config) {
 	v := viper.New()

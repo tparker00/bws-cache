@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	c "bws-cache/internal/pkg/config"
 	h "bws-cache/internal/pkg/http"
@@ -51,7 +52,7 @@ func main() {
 }
 
 func version() {
-	fmt.Println("0.1.0")
+	fmt.Println(c.Commit)
 }
 
 func start() {
@@ -89,7 +90,7 @@ func start() {
 }
 
 func getLoggerLevel(config string) slog.Level {
-	switch config {
+	switch strings.ToUpper(config) {
 	case "DEBUG":
 		return slog.LevelDebug
 	case "WARN":

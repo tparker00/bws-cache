@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"runtime/debug"
 	"strings"
 	"time"
 
 	"bws-cache/internal/pkg/client"
-	"bws-cache/internal/pkg/config"
+	c "bws-cache/internal/pkg/config"
 	"bws-cache/internal/pkg/metrics"
 
 	"github.com/go-chi/chi/v5"
@@ -19,18 +18,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-var commit = func() string {
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range info.Settings {
-			if setting.Key == "vcs.revision" {
-				return setting.Value
-			}
-		}
-	}
-
-	return ""
-}()
-
 type API struct {
 	SecretTTL time.Duration
 	WebTTL    time.Duration
@@ -39,7 +26,7 @@ type API struct {
 	Metrics   *metrics.BwsMetrics
 }
 
-func New(config *config.Config) http.Handler {
+func New(config *c.Config) http.Handler {
 	api := API{
 		SecretTTL: config.SecretTTL,
 		OrgID:     config.OrgID,
@@ -50,12 +37,13 @@ func New(config *config.Config) http.Handler {
 	logger := httplog.NewLogger("bws-cache", httplog.Options{
 		JSON:             true,
 		LogLevel:         slog.LevelInfo,
-		Concise:          true,
+		Concise:          false,
 		RequestHeaders:   true,
-		MessageFieldName: "message",
+		MessageFieldName: "msg",
 		TimeFieldFormat:  time.RFC3339,
+		TimeFieldName:    "time",
 		Tags: map[string]string{
-			"version": commit,
+			"version": c.Commit,
 		},
 		QuietDownRoutes: []string{
 			"/",
