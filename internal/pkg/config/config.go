@@ -24,6 +24,10 @@ type Config struct {
 //go:embed commit.txt
 var Commit string
 
+//go:generate sh -c "printf %s $(git describe --tags) > commit.txt"
+//go:embed version.txt
+var Version string
+
 func LoadConfig(config *Config) {
 	v := viper.New()
 	v.SetEnvPrefix("bws_cache")
