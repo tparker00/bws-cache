@@ -52,7 +52,7 @@ func main() {
 }
 
 func version() {
-	fmt.Println(c.Commit)
+	fmt.Println(c.Version)
 }
 
 func start() {
