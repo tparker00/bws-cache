@@ -1,6 +1,7 @@
 package config
 
 import (
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -18,6 +19,18 @@ type Config struct {
 	RefreshKeyMap bool          `mapstructure:"refresh_keymap_on_miss"`
 	Connection    client.Bitwarden
 }
+
+var Commit = func() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" {
+				return setting.Value
+			}
+		}
+	}
+
+	return ""
+}()
 
 func LoadConfig(config *Config) {
 	v := viper.New()
