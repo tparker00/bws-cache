@@ -29,6 +29,9 @@ type Bitwarden struct {
 func New(ttl time.Duration, projectName string) *Bitwarden {
 	bw := Bitwarden{}
 	bw.projectName = projectName
+	if projectName == "" {
+		slog.Warn("No project name configured: pushed secrets land at the organization root (set BWS_CACHE_PROJECT_NAME to target a project)")
+	}
 	slog.Debug("Setting up cache")
 	bw.Cache = cache.New(ttl)
 	bw.tokenPath = fmt.Sprintf("/tmp/%s", uuid.New())
