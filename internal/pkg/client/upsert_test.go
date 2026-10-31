@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -92,8 +93,8 @@ func (f fakeProjects) List(orgID string) (*sdk.ProjectsResponse, error) {
 }
 
 var (
-	errBoom     = errorsNew("boom")
-	errNotFound = errorsNew("not found")
+	errBoom     = errors.New("boom")
+	errNotFound = errors.New("not found")
 )
 
 func newTestBitwarden(projectName string) (*Bitwarden, *fakeSDK) {
@@ -167,3 +168,5 @@ func TestUpsertWithoutProjectPreservesMembershipViaGet(t *testing.T) {
 		t.Fatalf("unconfigured upsert must preserve membership, got %v", f.gotUpdate.projectIDs)
 	}
 }
+
+func strPtr(s string) *string { return &s }
