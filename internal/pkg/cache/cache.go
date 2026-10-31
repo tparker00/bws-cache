@@ -51,6 +51,14 @@ func (cache *Cache) SetSecret(key string, value string) {
 	cache.IDtoSecret.Set(key, value, 0)
 }
 
+func (cache *Cache) DeleteID(key string) {
+	cache.KeyToID.Delete(key)
+}
+
+func (cache *Cache) DeleteSecret(id string) {
+	cache.IDtoSecret.Delete(id)
+}
+
 func (cache *Cache) Reset() {
 	slog.Debug("Resetting cache")
 	cache.KeyToID.DeleteAll()
