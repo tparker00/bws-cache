@@ -102,3 +102,19 @@ func TestUpsertRejectsMissingValue(t *testing.T) {
 		t.Fatalf("expected 400 for missing value, got %d", rec.Code)
 	}
 }
+
+func TestUpsertRejectsInvalidJSON(t *testing.T) {
+	h, _ := newTestAPI(&fakeClient{
+		upsertByKey: func(context.Context, string, string, string, string, string) (string, error) {
+			t.Fatal("must not call upsert on undecodable body")
+			return "", nil
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/key/my-key", bytes.NewReader([]byte(`not-json`)))
+	req.Header.Set("Authorization", "Bearer tok-1")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid JSON, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
