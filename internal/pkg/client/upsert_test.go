@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -105,15 +106,22 @@ func newTestBitwarden(projectName string) (*Bitwarden, *fakeSDK) {
 func TestUpsertCreateLandsInConfiguredProject(t *testing.T) {
 	b, f := newTestBitwarden("lucidmate")
 	f.projects["proj-1"] = "lucidmate"
-	id, err := b.doUpsert(context.Background(), f, "db-password", "hunter2", "", "org")
+	raw, err := b.doUpsert(context.Background(), f, "db-password", "hunter2", "", "org")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(f.gotCreateProjectIDs) != 1 || f.gotCreateProjectIDs[0] != "proj-1" {
 		t.Fatalf("create must target configured project, got %v", f.gotCreateProjectIDs)
 	}
-	if got := b.Cache.GetID("db-password"); got != id {
-		t.Fatalf("key->ID mapping must be seeded, got %q want %q", got, id)
+	var resp map[string]any
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		t.Fatalf("response must be the full SecretResponse JSON, got %q: %v", raw, err)
+	}
+	if resp["key"] != "db-password" || resp["value"] != "hunter2" || resp["projectId"] != "proj-1" {
+		t.Fatalf("response fields wrong: %v", resp)
+	}
+	if got := b.Cache.GetID("db-password"); got != resp["id"] {
+		t.Fatalf("key->ID mapping must be seeded, got %q want %v", got, resp["id"])
 	}
 }
 

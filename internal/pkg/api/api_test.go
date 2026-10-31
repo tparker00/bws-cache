@@ -85,6 +85,11 @@ func TestUpsertCreatesOrUpdatesByKey(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("response not JSON: %v", err)
 	}
+	// The client is contracted to return the full SecretResponse shape;
+	// the handler must pass it through untouched.
+	if resp["key"] != "my-key" || resp["value"] != "stored" {
+		t.Fatalf("handler must pass the client response through, got %v", resp)
+	}
 }
 
 func TestUpsertRejectsMissingValue(t *testing.T) {

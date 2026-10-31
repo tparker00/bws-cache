@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -19,6 +20,7 @@ type sdkClient interface {
 // update-in-place when a secret with that key exists, create otherwise.
 // The key->ID mapping is resolved through the cache first (populated by
 // reads on cache miss) and only falls back to a full list scan when cold.
+// Returns the full JSON SecretResponse, matching the read path's shape.
 // Written values are invalidated rather than cached: the read path caches
 // the full JSON SecretResponse shape, which only the API response has.
 func (b *Bitwarden) UpsertByKey(ctx context.Context, key, value, note, orgID, clientToken string) (string, error) {
@@ -80,7 +82,7 @@ func (b *Bitwarden) doUpsert(ctx context.Context, cl sdkClient, key, value, note
 		}
 		b.Cache.DeleteSecret(res.ID)
 		b.Cache.SetID(key, res.ID)
-		return res.ID, nil
+		return marshalSecret(res), nil
 	}
 
 	slog.DebugContext(ctx, fmt.Sprintf("Creating new secret: %s", key))
@@ -89,7 +91,14 @@ func (b *Bitwarden) doUpsert(ctx context.Context, cl sdkClient, key, value, note
 		return "", fmt.Errorf("create secret: %w", err)
 	}
 	b.Cache.SetID(key, res.ID)
-	return res.ID, nil
+	return marshalSecret(res), nil
+}
+
+// marshalSecret renders the SDK response the same way the read path does,
+// so a secret resource has one JSON shape across every verb.
+func marshalSecret(res *sdk.SecretResponse) string {
+	stored, _ := json.Marshal(res)
+	return string(stored)
 }
 
 // ResetCache drops all cached secret values; readers repopulate from the API.
