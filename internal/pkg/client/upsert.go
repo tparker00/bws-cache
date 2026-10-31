@@ -4,7 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+
+	sdk "github.com/bitwarden/sdk-go"
 )
+
+// sdkClient is the SDK surface doUpsert needs; *sdk.BitwardenClient and
+// test fakes both satisfy it.
+type sdkClient interface {
+	Secrets() sdk.SecretsInterface
+	Projects() sdk.ProjectsInterface
+}
 
 // UpsertByKey stores value under the named secret in the organization:
 // update-in-place when a secret with that key exists, create otherwise.
@@ -19,11 +28,23 @@ func (b *Bitwarden) UpsertByKey(ctx context.Context, key, value, note, orgID, cl
 		return "", fmt.Errorf("connect: %w", err)
 	}
 	defer b.close()
+	return b.doUpsert(ctx, b.Client, key, value, note, orgID)
+}
+
+// doUpsert holds the upsert logic against an already-connected SDK client.
+// When a project name is configured (BWS_CACHE_PROJECT_NAME) it resolves
+// name->ID once per process and targets that project for both create and
+// update; when unset, updates preserve existing membership via a full Get.
+func (b *Bitwarden) doUpsert(ctx context.Context, cl sdkClient, key, value, note, orgID string) (string, error) {
+	projectIDs, err := b.resolveProject(ctx, cl, orgID)
+	if err != nil {
+		return "", err
+	}
 
 	id := b.Cache.GetID(key)
 	if id == "" {
 		slog.DebugContext(ctx, fmt.Sprintf("key %s not in cache, resolving via list", key))
-		list, err := b.Client.Secrets().List(orgID)
+		list, err := cl.Secrets().List(orgID)
 		if err != nil {
 			return "", fmt.Errorf("list secrets: %w", err)
 		}
@@ -39,17 +60,18 @@ func (b *Bitwarden) UpsertByKey(ctx context.Context, key, value, note, orgID, cl
 
 	if id != "" {
 		slog.DebugContext(ctx, fmt.Sprintf("Updating existing secret: %s", key))
-		// The list response omits ProjectIDs; fetch the full secret so the
-		// update preserves project membership.
-		existing, err := b.Client.Secrets().Get(id)
-		if err != nil {
-			return "", fmt.Errorf("get secret for update: %w", err)
+		if len(projectIDs) == 0 {
+			// No project configured: preserve existing membership, which the
+			// list response omits, so fetch the full secret first.
+			existing, err := cl.Secrets().Get(id)
+			if err != nil {
+				return "", fmt.Errorf("get secret for update: %w", err)
+			}
+			if existing.ProjectID != nil && *existing.ProjectID != "" {
+				projectIDs = []string{*existing.ProjectID}
+			}
 		}
-		var projectIDs []string
-		if existing.ProjectID != nil && *existing.ProjectID != "" {
-			projectIDs = []string{*existing.ProjectID}
-		}
-		res, err := b.Client.Secrets().Update(id, key, value, note, orgID, projectIDs)
+		res, err := cl.Secrets().Update(id, key, value, note, orgID, projectIDs)
 		if err != nil {
 			// The cached key->ID mapping may be stale (secret deleted
 			// out-of-band); drop it so the next attempt re-resolves.
@@ -62,7 +84,7 @@ func (b *Bitwarden) UpsertByKey(ctx context.Context, key, value, note, orgID, cl
 	}
 
 	slog.DebugContext(ctx, fmt.Sprintf("Creating new secret: %s", key))
-	res, err := b.Client.Secrets().Create(key, value, note, orgID, nil)
+	res, err := cl.Secrets().Create(key, value, note, orgID, firstOrNil(projectIDs))
 	if err != nil {
 		return "", fmt.Errorf("create secret: %w", err)
 	}
@@ -73,4 +95,36 @@ func (b *Bitwarden) UpsertByKey(ctx context.Context, key, value, note, orgID, cl
 // ResetCache drops all cached secret values; readers repopulate from the API.
 func (b *Bitwarden) ResetCache() {
 	b.Cache.Reset()
+}
+
+// resolveProject returns the project IDs to attach writes to: the
+// configured project (resolved by name once per process) or nil when no
+// project is configured. An unknown configured name fails loudly, naming
+// the project, so a PushSecret retry surfaces the misconfiguration.
+func (b *Bitwarden) resolveProject(ctx context.Context, cl sdkClient, orgID string) ([]string, error) {
+	if b.projectName == "" {
+		return nil, nil
+	}
+	if b.projectID != "" {
+		return []string{b.projectID}, nil
+	}
+	list, err := cl.Projects().List(orgID)
+	if err != nil {
+		return nil, fmt.Errorf("list projects to resolve %q: %w", b.projectName, err)
+	}
+	for _, p := range list.Data {
+		if p.Name == b.projectName {
+			b.projectID = p.ID
+			slog.InfoContext(ctx, fmt.Sprintf("Resolved project %q to %s", b.projectName, p.ID))
+			return []string{p.ID}, nil
+		}
+	}
+	return nil, fmt.Errorf("configured project %q not found in organization %s", b.projectName, orgID)
+}
+
+func firstOrNil(ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	return ids
 }

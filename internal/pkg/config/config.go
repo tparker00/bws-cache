@@ -16,6 +16,7 @@ type Config struct {
 	OrgID         string        `mapstructure:"org_id"`
 	SecretTTL     time.Duration `mapstructure:"secret_ttl"`
 	WebTTL        time.Duration `mapstructure:"web_ttl"`
+	ProjectName   string        `mapstructure:"project_name"`
 	RefreshKeyMap bool          `mapstructure:"refresh_keymap_on_miss"`
 	Connection    client.Bitwarden
 }
@@ -38,6 +39,7 @@ func LoadConfig(config *Config) {
 	v.SetDefault("org_id", "")
 	v.SetDefault("secret_ttl", "15m")
 	v.SetDefault("web_ttl", "5s")
+	v.SetDefault("project_name", "")
 	v.SetDefault("refresh_keymap_on_miss", true)
 	v.AutomaticEnv()
 

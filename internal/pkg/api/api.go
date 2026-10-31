@@ -34,7 +34,7 @@ func New(config *c.Config) http.Handler {
 		Metrics:   metrics.New(),
 	}
 	slog.Debug("Creating new bitwarden client connection")
-	api.Client = client.New(api.SecretTTL)
+	api.Client = client.New(api.SecretTTL, config.ProjectName)
 	slog.Debug("Client created")
 	return api.routes(config.WebTTL)
 }

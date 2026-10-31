@@ -19,10 +19,15 @@ type Bitwarden struct {
 	Cache     *cache.Cache
 	tokenPath string
 	mu        sync.Mutex
+
+	// projectName, when set (BWS_CACHE_PROJECT_NAME), targets all writes
+	// at that project; projectID caches the resolved ID.
+	projectName string
+	projectID   string
 }
 
-func New(ttl time.Duration) *Bitwarden {
-	bw := Bitwarden{}
+func New(ttl time.Duration, projectName string) *Bitwarden {
+	bw := Bitwarden{projectName: projectName}
 	slog.Debug("Setting up cache")
 	bw.Cache = cache.New(ttl)
 	bw.tokenPath = fmt.Sprintf("/tmp/%s", uuid.New())
