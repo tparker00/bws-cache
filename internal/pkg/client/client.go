@@ -27,7 +27,8 @@ type Bitwarden struct {
 }
 
 func New(ttl time.Duration, projectName string) *Bitwarden {
-	bw := Bitwarden{projectName: projectName}
+	bw := Bitwarden{}
+	bw.projectName = projectName
 	slog.Debug("Setting up cache")
 	bw.Cache = cache.New(ttl)
 	bw.tokenPath = fmt.Sprintf("/tmp/%s", uuid.New())
