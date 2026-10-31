@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -22,7 +23,7 @@ type API struct {
 	SecretTTL time.Duration
 	WebTTL    time.Duration
 	OrgID     string
-	Client    *client.Bitwarden
+	Client    SecretClient
 	Metrics   *metrics.BwsMetrics
 }
 
@@ -32,7 +33,13 @@ func New(config *c.Config) http.Handler {
 		OrgID:     config.OrgID,
 		Metrics:   metrics.New(),
 	}
+	slog.Debug("Creating new bitwarden client connection")
+	api.Client = client.New(api.SecretTTL)
+	slog.Debug("Client created")
+	return api.routes(config.WebTTL)
+}
 
+func (api *API) routes(webTTL time.Duration) http.Handler {
 	// Logger
 	logger := httplog.NewLogger("bws-cache", httplog.Options{
 		JSON:             true,
@@ -59,7 +66,7 @@ func New(config *c.Config) http.Handler {
 	router.Use(middleware.RealIP)
 	router.Use(httplog.RequestLogger(logger))
 	router.Use(middleware.Recoverer)
-	router.Use(middleware.Timeout(config.WebTTL))
+	router.Use(middleware.Timeout(webTTL))
 	// telemetry.Collector middleware mounts /metrics endpoint
 	// with prometheus metrics collector.
 	router.Use(telemetry.Collector(telemetry.Config{
@@ -71,15 +78,14 @@ func New(config *c.Config) http.Handler {
 
 	slog.Debug("Router middleware setup finished")
 
-	slog.Debug("Creating new bitwarden client connection")
-	api.Client = client.New(api.SecretTTL)
-	slog.Debug("Client created")
-
 	router.Route("/id", func(r chi.Router) {
 		r.Get("/{secret_id}", api.getSecretByID)
 	})
 	router.Route("/key", func(r chi.Router) {
 		r.Get("/{secret_key}", api.getSecretByKey)
+		// Create-or-update by key: backs PushSecret writes from
+		// external-secrets (webhook provider push config).
+		r.Post("/{secret_key}", api.upsertSecretByKey)
 	})
 	router.Get("/reset", api.resetConnection)
 
@@ -145,7 +151,7 @@ func (api *API) resetConnection(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slog.InfoContext(ctx, "Resetting cache")
 
-	api.Client.Cache.Reset()
+	api.Client.ResetCache()
 	tag := make(map[string]string)
 	tag["endpoint"] = "cache"
 	api.Metrics.Counter("get", tag)
@@ -160,4 +166,45 @@ func getAuthToken(r *http.Request) (string, error) {
 		return "", errors.Errorf("No token or invalid token sent")
 	}
 	return reqToken, nil
+}
+
+// upsertSecretByKey backs PushSecret: POST /key/{secret_key} with body
+// {"value": "..."} creates the secret in the organization when absent or
+// updates it in place when present, both keyed by secret name.
+func (api *API) upsertSecretByKey(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	token, err := getAuthToken(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	key := chi.URLParam(r, "secret_key")
+
+	var body struct {
+		Value string `json:"value"`
+		Note  string `json:"note"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.Value == "" {
+		http.Error(w, `missing required field "value"`, http.StatusBadRequest)
+		return
+	}
+
+	tag := map[string]string{"endpoint": "upsert"}
+	api.Metrics.Counter("upsert", tag)
+	span := api.Metrics.RecordSpan("upsert", tag)
+	defer span.Stop()
+
+	res, err := api.Client.UpsertByKey(ctx, key, body.Value, body.Note, api.OrgID, token)
+	if err != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("%+v", err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, res)
 }
