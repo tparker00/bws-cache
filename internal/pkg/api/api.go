@@ -87,6 +87,13 @@ func (api *API) routes(webTTL time.Duration) http.Handler {
 		// external-secrets (webhook provider push config).
 		r.Post("/{secret_key}", api.upsertSecretByKey)
 	})
+	router.Route("/exists", func(r chi.Router) {
+		// Read-only existence probe: backs external-secrets PushSecret
+		// verification (updatePolicy: IfNotExists), which sends the
+		// store-wide POST method. Never writes.
+		r.Get("/{secret_key}", api.existsSecretByKey)
+		r.Post("/{secret_key}", api.existsSecretByKey)
+	})
 	router.Get("/reset", api.resetConnection)
 
 	return router
@@ -207,4 +214,38 @@ func (api *API) upsertSecretByKey(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, res)
+}
+
+// existsSecretByKey answers whether a secret with the given key exists:
+// 200 when present, 404 when absent (external-secrets maps 404 to
+// NoSecretError), 500 on failure. It is strictly read-only; any request
+// body is ignored.
+func (api *API) existsSecretByKey(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	token, err := getAuthToken(r)
+	if err != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("%+v", err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	key := chi.URLParam(r, "secret_key")
+
+	tag := map[string]string{"endpoint": "exists"}
+	api.Metrics.Counter("get", tag)
+	span := api.Metrics.RecordSpan("get", tag)
+	defer span.Stop()
+
+	found, err := api.Client.ExistsByKey(ctx, key, api.OrgID, token)
+	if err != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("%+v", err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		http.Error(w, "secret not found: "+key, http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "{\"exists\":true}")
 }

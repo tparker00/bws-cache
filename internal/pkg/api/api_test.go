@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,6 +17,7 @@ type fakeClient struct {
 	getByID     func(ctx context.Context, id, token string) (string, error)
 	getByKey    func(ctx context.Context, key, orgID, token string) (string, error)
 	upsertByKey func(ctx context.Context, key, value, note, orgID, token string) (string, error)
+	existsByKey func(ctx context.Context, key, orgID, token string) (bool, error)
 }
 
 func (f *fakeClient) ResetCache() {}
@@ -28,6 +30,9 @@ func (f *fakeClient) GetByKey(ctx context.Context, key, orgID, token string) (st
 }
 func (f *fakeClient) UpsertByKey(ctx context.Context, key, value, note, orgID, token string) (string, error) {
 	return f.upsertByKey(ctx, key, value, note, orgID, token)
+}
+func (f *fakeClient) ExistsByKey(ctx context.Context, key, orgID, token string) (bool, error) {
+	return f.existsByKey(ctx, key, orgID, token)
 }
 
 // newTestAPI builds an API with the client seam replaced by a fake,
@@ -121,5 +126,93 @@ func TestUpsertRejectsInvalidJSON(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for invalid JSON, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestExistsByKeyGETFound(t *testing.T) {
+	h, _ := newTestAPI(&fakeClient{
+		existsByKey: func(_ context.Context, key, orgID, token string) (bool, error) {
+			if key != "my-key" || orgID != "org-123" || token != "tok-1" {
+				t.Fatalf("unexpected exists args: key=%q org=%q token=%q", key, orgID, token)
+			}
+			return true, nil
+		},
+	})
+	req := httptest.NewRequest(http.MethodGet, "/exists/my-key", nil)
+	req.Header.Set("Authorization", "Bearer tok-1")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestExistsByKeyPOSTNotFound(t *testing.T) {
+	// ESO's webhook verify flow sends the store-wide method (POST); the
+	// endpoint must answer it read-only.
+	h, _ := newTestAPI(&fakeClient{
+		existsByKey: func(context.Context, string, string, string) (bool, error) {
+			return false, nil
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/exists/my-key", nil)
+	req.Header.Set("Authorization", "Bearer tok-1")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for missing secret, got %d", rec.Code)
+	}
+}
+
+func TestExistsByKeyRequiresAuth(t *testing.T) {
+	called := false
+	h, _ := newTestAPI(&fakeClient{
+		existsByKey: func(context.Context, string, string, string) (bool, error) {
+			called = true
+			return true, nil
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/exists/my-key", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 without auth, got %d", rec.Code)
+	}
+	if called {
+		t.Fatal("exists must not be called without auth")
+	}
+}
+
+func TestExistsByKeyServerError(t *testing.T) {
+	h, _ := newTestAPI(&fakeClient{
+		existsByKey: func(context.Context, string, string, string) (bool, error) {
+			return false, errors.New("boom")
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/exists/my-key", nil)
+	req.Header.Set("Authorization", "Bearer tok-1")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 on client error, got %d", rec.Code)
+	}
+}
+
+func TestExistsNeverWrites(t *testing.T) {
+	h, _ := newTestAPI(&fakeClient{
+		existsByKey: func(context.Context, string, string, string) (bool, error) {
+			return true, nil
+		},
+		upsertByKey: func(context.Context, string, string, string, string, string) (string, error) {
+			t.Fatal("exists must never write")
+			return "", nil
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/exists/my-key", bytes.NewReader([]byte(`{"value":"evil"}`)))
+	req.Header.Set("Authorization", "Bearer tok-1")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
