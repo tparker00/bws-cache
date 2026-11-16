@@ -23,6 +23,7 @@ type fakeSDK struct {
 	projects  map[string]string              // ID -> name
 	nextID    int
 	failGet   bool
+	failList  bool
 	gotUpdate *struct {
 		id         string
 		projectIDs []string
@@ -47,6 +48,9 @@ type fakeProjects struct {
 }
 
 func (f fakeSecrets) List(orgID string) (*sdk.SecretIdentifiersResponse, error) {
+	if f.f.failList {
+		return nil, errBoom
+	}
 	res := &sdk.SecretIdentifiersResponse{}
 	for id, s := range f.f.secrets {
 		res.Data = append(res.Data, sdk.SecretIdentifierResponse{ID: id, Key: s.Key, OrganizationID: orgID})

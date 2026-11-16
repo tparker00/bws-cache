@@ -9,4 +9,5 @@ type SecretClient interface {
 	GetByID(ctx context.Context, id, clientToken string) (string, error)
 	GetByKey(ctx context.Context, key, orgID, clientToken string) (string, error)
 	UpsertByKey(ctx context.Context, key, value, note, orgID, clientToken string) (string, error)
+	ExistsByKey(ctx context.Context, key, orgID, clientToken string) (bool, error)
 }
